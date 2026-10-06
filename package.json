@@ -1,0 +1,31 @@
+{
+  "name": "agentos",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "eslint .",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@tailwindcss/postcss": "^4.3.3",
+    "@xyflow/react": "^12.8.5",
+    "lucide-react": "^0.468.0",
+    "next": "^16.3.8",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "recharts": "^2.15.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.5",
+    "@types/react": "^18.3.18",
+    "@types/react-dom": "^18.3.5",
+    "eslint": "^9.17.0",
+    "eslint-config-next": "^16.3.8",
+    "postcss": "^8.5.23",
+    "tailwindcss": "^4.3.3",
+    "typescript": "^5.7.2"
+  }
+}

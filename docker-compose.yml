@@ -1,0 +1,16 @@
+services:
+  postgres:
+    image: postgres:17
+    container_name: agentos-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: agentos
+      POSTGRES_PASSWORD: agentos_dev_password
+      POSTGRES_DB: agentos
+    ports:
+      - "5432:5432"
+    volumes:
+      - agentos_postgres_data:/var/lib/postgresql/data
+
+volumes:
+  agentos_postgres_data:
