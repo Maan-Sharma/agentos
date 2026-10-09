@@ -175,13 +175,6 @@ Backend commands are run from `backend/`: `npm run dev`, `npm run typecheck`, `n
 
 Contributions are welcome. Please read [CONTRIBUTING.md](CONTRIBUTING.md) first. In short: **fork the repo, create your own branch, and open a pull request** linked to an issue.
 
-## AI tools used
-
-This project was built with help from AI tools:
-
-- **Claude (Anthropic)**: documentation and project planning help (README, CONTRIBUTING, issue drafting)
-- _Add any other AI coding assistants or models you used here._
-
 ## License
 
 Released under the [MIT License](LICENSE).
