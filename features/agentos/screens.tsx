@@ -8,7 +8,7 @@ import {
   Settings, ShieldCheck, Sparkles, Users, Workflow, Zap,
 } from "lucide-react";
 import type { NavItem } from "@/features/agentos/data";
-import type { AgentRecord, CreateAgentInput } from "@/lib/api/agents";
+import { createAgentApiKey, type AgentApiKeyResult, type AgentRecord, type CreateAgentInput } from "@/lib/api/agents";
 import { WorkflowCanvas } from "@/components/agentos/workflow-canvas";
 import { AgentTable, Avatar, MetricCard, SectionHeading, StatusPill } from "@/components/agentos/shared";
 
@@ -28,26 +28,30 @@ export function HomeView({ agents, loading, error, onRetry, onSelect, setPage }:
   </>;
 }
 
-export function AgentsView({ agents, loading, error, onSelect, onCreate, onRetry }: { agents: AgentRecord[]; loading: boolean; error: string | null; onSelect: (agent: AgentRecord) => void; onCreate: (input: CreateAgentInput) => Promise<void>; onRetry: () => void }) {
+function LegacyAgentsView({ agents, loading, error, onSelect, onCreate, onRetry }: { agents: AgentRecord[]; loading: boolean; error: string | null; onSelect: (agent: AgentRecord) => void; onCreate: (input: CreateAgentInput) => Promise<{ agent: AgentRecord; key: AgentApiKeyResult } | void>; onRetry: () => void }) {
   const [showCreateDialog, setShowCreateDialog] = useState(false);
 
   return <><SectionHeading eyebrow="YOUR AI TEAM" title="Agents" subtitle="Manage the agents saved in your workspace." action={<button className="button button-primary" onClick={() => setShowCreateDialog(true)}><Plus size={15} />Add an agent</button>} /><section className="panel agents-panel"><div className="panel-heading"><div><h2>All agents <span className="count-pill">{loading ? "…" : agents.length}</span></h2><p>Agent details are loaded from your connected backend.</p></div><button className="button button-secondary" onClick={onRetry} disabled={loading}><ArrowRight size={14} />Refresh</button></div>{error && <div className="agent-api-error" role="alert">{error}</div>}<AgentTable agents={agents} loading={loading} onSelect={onSelect} /></section><div className="page-footnote"><ShieldCheck size={15} />Agent configuration is stored by your workspace backend.</div>{showCreateDialog && <CreateAgentDialog onClose={() => setShowCreateDialog(false)} onCreate={onCreate} />}</>;
 }
 
-export function AgentDetail({ agent, back }: { agent: AgentRecord; back: () => void }) {
+function LegacyAgentDetail({ agent, back }: { agent: AgentRecord; back: () => void }) {
   const initials = agent.name.split(/\s+/).filter(Boolean).slice(0, 2).map((part) => part[0]?.toUpperCase()).join("") || "A";
   const createdAt = new Date(agent.createdAt).toLocaleString();
 
   return <><button className="back-link" onClick={back}><ChevronLeft size={16} />All agents</button><div className="detail-header"><div className="detail-agent"><Avatar initials={initials} color="lavender" /><div><div className="eyebrow">YOUR AI TEAM</div><h1>{agent.name}</h1>{agent.description && <p>{agent.description}</p>}</div></div><div className="detail-actions"><StatusPill status={agent.status} /></div></div><div className="detail-meta"><span><Bot size={15} />Model <strong>{agent.model}</strong></span><span><CalendarDays size={15} />Created <strong>{createdAt}</strong></span></div><section className="panel agent-instructions"><div className="panel-heading"><div><h2>Instructions</h2><p>System instructions configured for this agent.</p></div></div><p>{agent.instructions}</p></section></>;
 }
 
-function CreateAgentDialog({ onClose, onCreate }: { onClose: () => void; onCreate: (input: CreateAgentInput) => Promise<void> }) {
+function CreateAgentDialog({ onClose, onCreate }: { onClose: () => void; onCreate: (input: CreateAgentInput) => Promise<{ agent: AgentRecord; key: AgentApiKeyResult } | void> }) {
+  const [mode, setMode] = useState<"create" | "connect">("connect");
   const [name, setName] = useState("");
+  const [externalId, setExternalId] = useState("");
   const [description, setDescription] = useState("");
-  const [instructions, setInstructions] = useState("");
+  const [instructions, setInstructions] = useState("No custom instructions configured.");
   const [model, setModel] = useState("gpt-5.6");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [success, setSuccess] = useState<{ agent: AgentRecord; key: AgentApiKeyResult } | null>(null);
+  const [copied, setCopied] = useState(false);
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -55,12 +59,19 @@ function CreateAgentDialog({ onClose, onCreate }: { onClose: () => void; onCreat
     setError(null);
 
     try {
-      await onCreate({
+      const result = await onCreate({
         name: name.trim(),
+        externalId: externalId.trim() || undefined,
         description: description.trim() || undefined,
-        instructions: instructions.trim(),
+        instructions: instructions.trim() || undefined,
         model: model.trim() || undefined,
       });
+
+      if (result && result.key && result.agent) {
+        setSuccess(result);
+        return;
+      }
+
       onClose();
     } catch (submitError) {
       setError(submitError instanceof Error ? submitError.message : "Could not create the agent.");
@@ -69,7 +80,19 @@ function CreateAgentDialog({ onClose, onCreate }: { onClose: () => void; onCreat
     }
   }
 
-  return <div className="agent-dialog-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget && !submitting) onClose(); }}><section className="agent-dialog" role="dialog" aria-modal="true" aria-labelledby="create-agent-title"><div className="panel-heading"><div><h2 id="create-agent-title">Add an agent</h2><p>Create an agent in your workspace.</p></div><button type="button" className="icon-button" aria-label="Close dialog" onClick={onClose} disabled={submitting}>×</button></div><form onSubmit={handleSubmit}><label className="agent-form-field">Name<input autoFocus required minLength={2} maxLength={120} value={name} onChange={(event) => setName(event.target.value)} /></label><label className="agent-form-field">Description <span>(optional)</span><input maxLength={500} value={description} onChange={(event) => setDescription(event.target.value)} /></label><label className="agent-form-field">Instructions<textarea required value={instructions} onChange={(event) => setInstructions(event.target.value)} rows={5} /></label><label className="agent-form-field">Model<input value={model} onChange={(event) => setModel(event.target.value)} /></label>{error && <div className="agent-api-error" role="alert">{error}</div>}<div className="agent-dialog-actions"><button type="button" className="button button-secondary" onClick={onClose} disabled={submitting}>Cancel</button><button type="submit" className="button button-primary" disabled={submitting}>{submitting ? "Creating…" : "Create agent"}</button></div></form></section></div>;
+  async function handleCopyKey() {
+    if (!success) return;
+
+    try {
+      await navigator.clipboard.writeText(success.key.apiKey);
+      setCopied(true);
+      window.setTimeout(() => setCopied(false), 1800);
+    } catch {
+      setError("Unable to copy the API key automatically. Please copy it manually from the field below.");
+    }
+  }
+
+  return <div className="agent-dialog-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget && !submitting) onClose(); }}><section className="agent-dialog" role="dialog" aria-modal="true" aria-labelledby="create-agent-title"><div className="panel-heading"><div><h2 id="create-agent-title">{success ? "Connect your agent" : "Add an agent"}</h2><p>{success ? "Your agent is registered and ready to send telemetry." : "Create an agent in your workspace or connect an existing one."}</p></div><button type="button" className="icon-button" aria-label="Close dialog" onClick={onClose} disabled={submitting}>×</button></div>{success ? <div className="agent-connect-success"><div className="agent-success-header"><span className="status-pill status-good"><span className="status-dot" />Agent created</span></div><p>Use this generated AgentOS API key in your external agent runtime.</p><div className="agent-form-field"><label>Agent ID</label><input readOnly value={success.agent.id} /></div><div className="agent-form-field"><label>AgentOS API key</label><input readOnly value={success.key.apiKey} /></div><div className="agent-dialog-actions"><button type="button" className="button button-secondary" onClick={onClose}>Done</button><button type="button" className="button button-primary" onClick={handleCopyKey}>{copied ? "Copied" : "Copy key"}</button></div><p className="agent-key-note">Store the API key as <strong>AGENTOS_API_KEY</strong> in your external agent environment. It is shown once.</p></div> : <form onSubmit={handleSubmit}><div className="agent-mode-switch" role="tablist" aria-label="Agent creation mode"><button type="button" className={mode === "create" ? "mode-pill active" : "mode-pill"} onClick={() => setMode("create")}>Create Agent</button><button type="button" className={mode === "connect" ? "mode-pill active" : "mode-pill"} onClick={() => setMode("connect")}>Connect Existing Agent</button></div><label className="agent-form-field">Name<input autoFocus required minLength={2} maxLength={120} value={name} onChange={(event) => setName(event.target.value)} /></label><label className="agent-form-field">Description <span>(optional)</span><input maxLength={500} value={description} onChange={(event) => setDescription(event.target.value)} /></label>{mode === "connect" && <label className="agent-form-field">External Agent ID<input maxLength={120} value={externalId} onChange={(event) => setExternalId(event.target.value)} placeholder="sales-agent-prod" /></label>}<label className="agent-form-field">Instructions<textarea value={instructions} onChange={(event) => setInstructions(event.target.value)} rows={5} /></label><label className="agent-form-field">Model<input value={model} onChange={(event) => setModel(event.target.value)} /></label>{error && <div className="agent-api-error" role="alert">{error}</div>}<div className="agent-dialog-actions"><button type="button" className="button button-secondary" onClick={onClose} disabled={submitting}>Cancel</button><button type="submit" className="button button-primary" disabled={submitting}>{submitting ? "Creating…" : mode === "connect" ? "Create and connect" : "Create agent"}</button></div></form>}</section></div>;
 }
 
 export function WorkflowView() {
@@ -93,6 +116,8 @@ export function TeamView() {
   const members = [{ name: "Man Mohan", email: "man@acmeco.com", role: "Owner", initials: "MM", color: "lavender" }, { name: "Alex Morgan", email: "alex@acmeco.com", role: "Admin", initials: "AM", color: "sky" }, { name: "Jamie Chen", email: "jamie@acmeco.com", role: "Member", initials: "JC", color: "mint" }, { name: "Taylor Brooks", email: "taylor@acmeco.com", role: "Member", initials: "TB", color: "peach" }];
   return <><SectionHeading eyebrow="YOUR WORKSPACE" title="Team" subtitle="The people looking after your AI team." action={<button className="button button-primary"><Plus size={15} />Invite a teammate</button>} /><div className="metric-strip team-strip"><div><strong>4</strong><span>Team members</span></div><div><strong>1</strong><span>Pending invite</span></div><div><strong>3</strong><span>Active this week</span></div></div><section className="panel agents-panel"><div className="panel-heading"><div><h2>People <span className="count-pill">4</span></h2><p>Manage who can access your workspace.</p></div><button className="button button-secondary"><Users size={15} />Manage roles</button></div><div className="table-scroll"><table className="agent-table team-table"><thead><tr><th>Member</th><th>Role</th><th>Last active</th><th /></tr></thead><tbody>{members.map((member, index) => <tr key={member.email}><td><div className="agent-name-cell"><Avatar initials={member.initials} color={member.color} /><span><strong>{member.name}</strong><small>{member.email}</small></span></div></td><td><span className="role-pill">{member.role}</span></td><td className="last-active">{index === 0 ? "Just now" : index === 1 ? "12 min ago" : index === 2 ? "1 hr ago" : "Yesterday"}</td><td><button className="icon-button"><MoreHorizontal size={18} /></button></td></tr>)}</tbody></table></div></section></>;
 }
+
+export { AgentsView, AgentDetail } from "./agent-management";
 
 export function AuditView() {
   const logs = [["Man Mohan", "Updated billing plan", "Billing", "Today, 10:42 AM"], ["Alex Morgan", "Added a new agent", "Agents", "Today, 9:18 AM"], ["Jamie Chen", "Connected Slack", "Connections", "Today, 8:54 AM"], ["Man Mohan", "Invited Taylor Brooks", "Team", "Yesterday, 4:12 PM"], ["Alex Morgan", "Updated workflow settings", "Workflows", "Oct 4, 2:30 PM"]];
