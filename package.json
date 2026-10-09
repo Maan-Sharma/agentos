@@ -4,6 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
+    "dev:all": "docker compose up -d && concurrently -k -n backend,frontend \"npm run dev --prefix backend\" \"npm run dev\"",
     "build": "next build",
     "start": "next start",
     "lint": "eslint .",
@@ -22,6 +23,7 @@
     "@types/node": "^22.10.5",
     "@types/react": "^18.3.18",
     "@types/react-dom": "^18.3.5",
+    "concurrently": "^10.0.6",
     "eslint": "^9.17.0",
     "eslint-config-next": "^16.3.8",
     "postcss": "^8.5.23",
