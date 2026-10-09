@@ -1,0 +1,1 @@
+ALTER TABLE "agents" ALTER COLUMN "last_active_at" SET DATA TYPE timestamp with time zone;

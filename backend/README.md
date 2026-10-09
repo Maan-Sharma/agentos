@@ -47,6 +47,22 @@ The API listens on `http://localhost:4000`. The frontend API client defaults to 
 
 Never put database credentials or server-side API keys in `NEXT_PUBLIC_*` variables.
 
+## Authentication
+
+The API supports email/password signup and login, logout, session inspection, and optional Google OAuth. Sessions are held in an HttpOnly cookie; configure `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` and `GOOGLE_REDIRECT_URI` together to enable Google sign-in. The callback URL must match the redirect URI registered with Google.
+
+Agent API routes require a valid session cookie and are scoped to the caller's current workspace.
+
+## Backend tests
+
+Tests use a separate PostgreSQL database. Create it and apply migrations before running the integration suite:
+
+```sh
+createdb -h localhost -U agentos agentos_test
+```
+
+Set `NODE_ENV=test` and `TEST_DATABASE_URL` to that test database's connection string, run `npm run db:migrate` with `DATABASE_URL` pointing to the same test database, then run `npm test`. Tests delete only the uniquely named users they create.
+
 ## Migration workflow
 
 Run these commands from `backend/` after changing `src/db/schema.ts`:
@@ -60,4 +76,11 @@ npm run db:migrate
 
 - `GET /api/v1/health` — confirms the API is running.
 - `GET /api/v1/agents` — returns `{ "agents": [...] }` from PostgreSQL.
-- `POST /api/v1/agents` — validates and stores an agent, returning `{ "agent": ... }`.
+- `GET /api/v1/agents?status=active&role=support` — lists agents in the signed-in workspace with optional validated filters. Status is derived from pause state and activity in the last 24 hours.
+- `GET /api/v1/agents/:id` — returns one agent from the signed-in workspace.
+- `POST /api/v1/agents` — validates and creates an agent with provider, model, role, instructions, and optional monthly budget.
+- `PATCH /api/v1/agents/:id` — validates and updates agent configuration.
+- `POST /api/v1/agents/:id/pause` and `POST /api/v1/agents/:id/resume` — control the person-managed pause state.
+- `DELETE /api/v1/agents/:id` — deletes an agent; owners and admins only.
+
+Agent create, update, pause, resume, and delete actions are written to `audit_logs`. Agent execution telemetry updates `lastActiveAt`; an agent is active only when it is not paused and has activity within the last 24 hours.
