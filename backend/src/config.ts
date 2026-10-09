@@ -17,6 +17,23 @@ const envSchema = z.object({
   JWT_SECRET: z.string().min(32).optional(),
   OPENAI_API_KEY: z.string().min(1).optional(),
   ANTHROPIC_API_KEY: z.string().min(1).optional(),
+  GOOGLE_CLIENT_ID: z.string().min(1).optional(),
+  GOOGLE_CLIENT_SECRET: z.string().min(1).optional(),
+  GOOGLE_REDIRECT_URI: z.string().url().optional(),
+  TEST_DATABASE_URL: z.string().url().optional(),
+}).superRefine((env, context) => {
+  const googleVars = [
+    env.GOOGLE_CLIENT_ID,
+    env.GOOGLE_CLIENT_SECRET,
+    env.GOOGLE_REDIRECT_URI,
+  ];
+  if (googleVars.some(Boolean) && googleVars.some((value) => !value)) {
+    context.addIssue({
+      code: "custom",
+      message: "Set GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET and GOOGLE_REDIRECT_URI together",
+      path: ["GOOGLE_CLIENT_ID"],
+    });
+  }
 });
 
 const parsedEnv = envSchema.safeParse(process.env);
@@ -29,3 +46,10 @@ if (!parsedEnv.success) {
 }
 
 export const config = parsedEnv.data;
+if (config.NODE_ENV === "test" && !config.TEST_DATABASE_URL) {
+  throw new Error("TEST_DATABASE_URL must be set when NODE_ENV=test.");
+}
+
+export const databaseUrl = config.NODE_ENV === "test"
+  ? config.TEST_DATABASE_URL!
+  : config.DATABASE_URL;
