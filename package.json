@@ -1,10 +1,11 @@
+
 {
   "name": "agentos",
   "version": "1.0.0",
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "dev:all": "docker compose up -d && concurrently -k -n backend,frontend \"npm run dev --prefix backend\" \"npm run dev\"",
+    "dev:all": "concurrently -k -n FRONTEND,BACKEND -c blue,green \"npm run dev\" \"npm run dev --prefix backend\"",
     "build": "next build",
     "start": "next start",
     "lint": "eslint .",
@@ -13,6 +14,8 @@
   "dependencies": {
     "@tailwindcss/postcss": "^4.3.3",
     "@xyflow/react": "^12.8.5",
+    "firebase": "^13.0.0",
+    "firebase-admin": "^14.5.0",
     "lucide-react": "^0.468.0",
     "next": "^16.3.8",
     "react": "^18.3.1",

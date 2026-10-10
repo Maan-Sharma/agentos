@@ -2,9 +2,9 @@
 
 > **The operating system for your company's AI workforce.**
 
-AgentOS is a B2B SaaS platform for creating, connecting, managing and monitoring AI agents from a single workspace.
+AgentOS is a B2B SaaS platform for creating, connecting, managing, and monitoring AI agents from a single workspace.
 
-Instead of AI agents scattered across scripts, APIs, servers and platforms, AgentOS gives teams one control center for their entire AI workforce.
+Instead of AI agents scattered across scripts, APIs, servers, and platforms, AgentOS gives teams one control center for their entire AI workforce.
 
 ![Status](https://img.shields.io/badge/status-in%20development-orange)
 ![Next.js](https://img.shields.io/badge/Next.js-16-black)
@@ -15,39 +15,39 @@ Instead of AI agents scattered across scripts, APIs, servers and platforms, Agen
 
 ## Vision
 
-Companies are starting to deploy dozens or hundreds of AI agents across sales, support, engineering, operations, research and internal workflows.
+Companies are starting to deploy dozens or hundreds of AI agents across sales, support, engineering, operations, research, and internal workflows.
 
 The problem is simple: **where do you manage all of them?**
 
 AgentOS aims to be that control plane.
 
 ```text
-             +----------------------+
-             |       AgentOS        |
-             |   AI Workforce OS    |
-             +----------+-----------+
-                        |
-   +--------------------+--------------------+
-   |                    |                    |
-Agents              Workflows           Insights
-   |                    |                    |
-   +--------------------+--------------------+
-                        |
+             ┌──────────────────────┐
+             │       AgentOS        │
+             │   AI Workforce OS    │
+             └──────────┬───────────┘
+                        │
+   ┌────────────────────┼────────────────────┐
+   │                    │                    │
+ Agents              Workflows            Insights
+   │                    │                    │
+   └────────────────────┼────────────────────┘
+                        │
                  Agent Runtime
-                        |
-       +----------------+----------------+
-       |                |                |
-    AI Models         Tools          Customer APIs
+                        │
+       ┌────────────────┼────────────────┐
+       │                │                │
+   AI Models          Tools         Customer APIs
 ```
 
 ## Core concepts
 
 | Concept | What it is |
 | --- | --- |
-| **Agents** | Individual AI agents you create, configure and manage |
-| **Workflows** | Connected, coordinated processes built from agents (visual graph editor) |
+| **Agents** | Individual AI agents you create, configure, and manage |
+| **Workflows** | Connected processes built from agents using a visual graph editor |
 | **Insights** | Monitoring and analytics for your AI workforce |
-| **Agent Runtime** | The layer that runs agents and talks to models, tools and customer APIs |
+| **Agent Runtime** | The layer that runs agents and communicates with models, tools, and customer APIs |
 
 ## Tech stack
 
@@ -58,22 +58,25 @@ Agents              Workflows           Insights
 | Workflow graphs | React Flow (`@xyflow/react`) |
 | Charts | Recharts |
 | Icons | Lucide React |
+| Authentication | Firebase Authentication and Firebase Admin SDK |
 | Database | PostgreSQL 17 (via Docker Compose) |
-| Backend | Fastify 5, Drizzle ORM, Zod |
+| Backend | `backend/` service, intended to run at `http://localhost:4000/api/v1` |
 | Tooling | ESLint, TypeScript, Docker Compose |
 
 ## Project structure
 
 ```text
 agentos/
-|-- app/                  # Next.js app router pages
-|-- backend/              # Fastify API service
-|-- components/agentos/   # Reusable UI components
-|-- features/agentos/     # Feature modules
-|-- lib/api/              # API client helpers
-|-- .env.example          # Frontend environment template
-|-- docker-compose.yml    # PostgreSQL 17 for local development
-`-- package.json
+├── app/                  # Next.js App Router pages and API routes
+├── backend/              # Backend API service
+├── components/agentos/   # Reusable application UI components
+├── components/auth/      # Authentication UI components
+├── lib/api/              # API client helpers
+├── lib/auth/             # Authentication context and server utilities
+├── lib/firebase/         # Firebase client and Admin SDK setup
+├── .env.example          # Example environment variables
+├── docker-compose.yml    # Local database configuration
+└── package.json
 ```
 
 ## Getting started
@@ -82,7 +85,8 @@ agentos/
 
 - Node.js 20 or newer
 - npm
-- Docker (for the local PostgreSQL database)
+- A Firebase project for Google sign-in
+- Docker, if you need the local PostgreSQL database
 
 ### 1. Clone the repository
 
@@ -93,87 +97,103 @@ cd agentos
 
 ### 2. Install dependencies
 
-Install the frontend and backend packages:
-
 ```bash
 npm install
-cd backend
-npm install
 ```
 
-### 3. Set up environment variables
+### 3. Configure environment variables
 
-From `backend/`, create the backend environment file:
+Copy the example environment file:
+
+**Windows PowerShell**
 
 ```powershell
-Copy-Item .env.example .env
+Copy-Item .env.example .env.local
 ```
 
-On macOS/Linux, use `cp .env.example .env`.
+**macOS / Linux**
 
-The backend template uses the same development PostgreSQL credentials configured in `docker-compose.yml`:
+```bash
+cp .env.example .env.local
+```
 
-| Variable | Local development value |
-| --- | --- |
-| `DATABASE_URL` | `postgresql://agentos:agentos_dev_password@localhost:5432/agentos` |
-| `PORT` | `4000` |
-| `CORS_ORIGIN` | `http://localhost:3000` |
+Configure the following values in `.env.local`:
 
-The root `.env.example` documents the optional frontend `NEXT_PUBLIC_API_URL` override. Copy it to `.env.local` only if you need to change the default API URL.
+| Variable | Description | Example |
+| --- | --- | --- |
+| `NEXT_PUBLIC_API_URL` | Base URL used by the frontend API client | `http://localhost:4000/api/v1` |
+| `NEXT_PUBLIC_FIREBASE_API_KEY` | Firebase web API key | `your-firebase-api-key` |
+| `NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN` | Firebase authentication domain | `your-project.firebaseapp.com` |
+| `NEXT_PUBLIC_FIREBASE_PROJECT_ID` | Firebase project ID | `your-firebase-project-id` |
+| `NEXT_PUBLIC_FIREBASE_APP_ID` | Firebase web app ID | `your-firebase-app-id` |
+| `FIREBASE_CLIENT_EMAIL` | Firebase Admin service-account email | `your-service-account-email` |
+| `FIREBASE_PRIVATE_KEY` | Firebase Admin service-account private key | Keep this value secret |
 
-Never commit real secrets or use the development database credentials in production.
+#### Firebase setup
 
-### 4. Start the database and apply migrations
+1. Create or open a project in the [Firebase Console](https://console.firebase.google.com/).
+2. Add a web app and copy its Firebase configuration values into the `NEXT_PUBLIC_FIREBASE_*` variables.
+3. In **Authentication → Sign-in method**, enable Google as a sign-in provider.
+4. For server-side authentication, configure Firebase Admin SDK credentials using a service account. Set `FIREBASE_CLIENT_EMAIL` and `FIREBASE_PRIVATE_KEY` in `.env.local`.
+5. Add your local development domain (`localhost`) to Firebase Authentication's authorized domains if it is not already listed.
 
-From the repository root:
+Keep service-account credentials private. **Never commit `.env.local`, service-account JSON files, or real private keys to Git.** The Firebase Admin private key should be provided with escaped `\n` characters if required by the environment configuration.
+
+The database configuration may also require `POSTGRES_USER`, `POSTGRES_PASSWORD`, and `POSTGRES_DB`, depending on your Docker Compose setup.
+
+### 4. Start the database
 
 ```bash
 docker compose up -d
-cd backend
-npm run db:migrate
-cd ..
 ```
 
-After changing `backend/src/db/schema.ts`, create a migration with `npm run db:generate`, review the generated SQL, then apply it with `npm run db:migrate`.
+This starts the PostgreSQL service configured in `docker-compose.yml`.
 
-### 5. Run the applications
+### 5. Start the backend
 
-From the repository root:
+The backend service lives in the `backend/` folder. Follow its setup instructions and ensure it is available at the URL configured in `NEXT_PUBLIC_API_URL`.
+
+### 6. Run the frontend
 
 ```bash
-npm run dev:all
+npm run dev
 ```
 
-This starts Docker Compose, the backend API and the frontend. Open [http://localhost:3000](http://localhost:3000); the API health endpoint is [http://localhost:4000/api/v1/health](http://localhost:4000/api/v1/health).
-
-To run only the frontend, use `npm run dev` at the repository root. To run only the backend, use `npm run dev` from `backend/` after starting PostgreSQL.
+Open [http://localhost:3000](http://localhost:3000).
 
 ## Available scripts
 
 | Command | What it does |
 | --- | --- |
 | `npm run dev` | Start the frontend development server |
-| `npm run dev:all` | Start Docker Compose, the backend and the frontend |
-| `npm run build` | Create a production frontend build |
-| `npm run start` | Run the production frontend build |
-| `npm run lint` | Lint the frontend code with ESLint |
-| `npm run typecheck` | Type-check the frontend with TypeScript |
+| `npm run build` | Create a production build |
+| `npm run start` | Run the production build |
+| `npm run lint` | Lint the code with ESLint |
+| `npm run typecheck` | Type-check the code with TypeScript |
 
-Backend commands are run from `backend/`: `npm run dev`, `npm run typecheck`, `npm run db:generate` and `npm run db:migrate`.
+If the `dev:all` script is available in your local branch, `npm run dev:all` starts both the frontend and backend development processes.
 
 ## Roadmap
 
 - [x] Project scaffold (Next.js, Tailwind, Docker Compose)
-- [ ] Login and sign-up with email and Google (see the open issue)
+- [x] Login and sign-up UI with email and Google authentication
 - [ ] Agent creation and management
 - [ ] Visual workflow builder
 - [ ] Insights dashboard (usage, cost, run history)
-- [ ] Support for open-weight models (for example, running agents on a local model through Ollama)
+- [ ] Support for open-weight models, including local models through Ollama
 - [ ] Team workspaces and roles
 
 ## Contributing
 
-Contributions are welcome. Please read [CONTRIBUTING.md](CONTRIBUTING.md) first. In short: **fork the repo, create your own branch, and open a pull request** linked to an issue.
+Contributions are welcome. Please read [CONTRIBUTING.md](CONTRIBUTING.md) first. In short: fork the repository, create a feature branch, and open a pull request linked to an issue.
+
+## AI tools used
+
+This project was built with help from AI tools.
+
+- **Claude (Anthropic):** Documentation and project planning assistance.
+
+Add any other AI coding assistants or models used for your contribution.
 
 ## License
 

@@ -21,7 +21,7 @@ import {
 import { useAuth } from "@/lib/auth/auth-context";
 
 export function AgentOS() {
-  const { user, workspace, logout } = useAuth();
+  const { user, logout } = useAuth(); const workspace = null;
   const [page, setPage] = useState<NavItem>("Home");
   const [selectedAgent, setSelectedAgent] = useState<AgentRecord | null>(null);
   const [agents, setAgents] = useState<AgentRecord[]>([]);
@@ -148,3 +148,5 @@ export function AgentOS() {
     <main className="main-area"><header className="topbar"><div className="topbar-left"><button className="icon-button mobile-menu" aria-label="Open menu" onClick={() => setSidebarOpen(true)}><Menu size={20} /></button><div className="breadcrumb"><span className="breadcrumb-workspace">{workspace?.name ?? "Workspace"}</span><ChevronRight size={14} /><span>{selectedAgent ? selectedAgent.name : page}</span></div></div><div className="topbar-right"><button className="search-trigger" onClick={() => navigate("Agents")}><Search size={16} /><span>Search anything...</span><kbd>⌘ K</kbd></button><button className="icon-button help-button" aria-label="Help"><CircleHelp size={18} /></button><div className="notification-wrap"><button className="icon-button notification-button" aria-label="Notifications" onClick={() => setShowNotifications(!showNotifications)}><Bell size={18} /></button>{showNotifications && <div className="notification-popover"><div className="notification-heading">Notifications</div><p className="notification-empty">No new notifications.</p></div>}</div><div className="topbar-divider" /><div className="user-menu-wrap"><button className="topbar-avatar" aria-label="User menu" aria-expanded={showUserMenu} onClick={() => setShowUserMenu((visible) => !visible)}><Avatar initials={userInitials} color="lavender" /><ChevronDown size={13} /></button>{showUserMenu && <div className="user-menu"><strong>{user?.name}</strong><span>{user?.email}</span><div className="user-menu-divider" /><button onClick={() => void logout()}><LogOut size={15} />Log out</button></div>}</div></div></header><div className="page-content">{pageContent}</div><footer className="app-footer"><span>© 2026 AgentOS</span><span>Thoughtful AI, working for you.</span><button><CircleHelp size={13} />Help center</button></footer></main>
   </div>;
 }
+
+
