@@ -1,95 +1,306 @@
+
 "use client";
 
-import {
+import React, {
   createContext,
-  useCallback,
   useContext,
   useEffect,
-  useMemo,
   useState,
-  type ReactNode,
+  useCallback,
 } from "react";
-import { useRouter } from "next/navigation";
+import { signInWithPopup } from "firebase/auth";
+import { firebaseAuth, googleProvider } from "@/lib/firebase/client";
+import type {
+  AuthUser,
+  AuthSession,
+  LoginInput,
+  SignupInput,
+  GoogleAuthInput,
+} from "./types";
 
-import { getMe, logout as logoutRequest, type AuthMeResponse } from "@/lib/api/auth";
-
-type AuthContextValue = {
-  user: AuthMeResponse["user"] | null;
-  workspace: AuthMeResponse["workspace"] | null;
-  role: AuthMeResponse["role"] | null;
-  loading: boolean;
+interface AuthContextType {
+  user: AuthUser | null;
+  session: AuthSession | null;
+  isLoading: boolean;
+  login: (input: LoginInput) => Promise<AuthSession>;
+  signup: (input: SignupInput) => Promise<AuthSession>;
+  loginWithGoogle: (input?: GoogleAuthInput) => Promise<AuthSession>;
   logout: () => Promise<void>;
-  refresh: () => Promise<void>;
-};
+  requestPasswordReset: (
+    email: string
+  ) => Promise<{ success: boolean; message: string }>;
+}
 
-const AuthContext = createContext<AuthContextValue | null>(null);
+const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-export function AuthProvider({ children }: { children: ReactNode }) {
-  const router = useRouter();
-  const [auth, setAuth] = useState<AuthMeResponse | null>(null);
-  const [loading, setLoading] = useState(true);
+const STORAGE_KEY = "agentos_auth_session";
 
+export function AuthProvider({
+  children,
+}: {
+  children: React.ReactNode;
+}) {
+  const [user, setUser] = useState<AuthUser | null>(null);
+  const [session, setSession] = useState<AuthSession | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+
+  // Restore and verify the saved session
   useEffect(() => {
-    const handleUnauthorized = () => router.replace("/login");
-    window.addEventListener("agentos:unauthorized", handleUnauthorized);
-    return () => window.removeEventListener("agentos:unauthorized", handleUnauthorized);
-  }, [router]);
+    let cancelled = false;
 
-  const refresh = useCallback(async () => {
-    try {
-      setAuth(await getMe());
-    } catch {
-      setAuth(null);
-    } finally {
-      setLoading(false);
+    async function checkAuth() {
+      try {
+        const stored = localStorage.getItem(STORAGE_KEY);
+        let tokenToVerify: string | null = null;
+
+        if (stored) {
+          try {
+            const parsedSession: AuthSession = JSON.parse(stored);
+
+            if (
+              parsedSession &&
+              parsedSession.expiresAt > Date.now()
+            ) {
+              if (!cancelled) {
+                setSession(parsedSession);
+                setUser(parsedSession.user);
+              }
+
+              tokenToVerify = parsedSession.token;
+            } else {
+              localStorage.removeItem(STORAGE_KEY);
+            }
+          } catch {
+            localStorage.removeItem(STORAGE_KEY);
+          }
+        }
+
+        const headers: Record<string, string> = {};
+
+        if (tokenToVerify) {
+          headers.Authorization = `Bearer ${tokenToVerify}`;
+        }
+
+        if (!tokenToVerify) { if (!cancelled) setIsLoading(false); return; }; const res = await fetch("/api/auth/me", {
+          credentials: "same-origin",
+          headers,
+        });
+
+        if (res.ok) {
+          const verifiedSession: AuthSession = await res.json();
+
+          if (!cancelled) {
+            setSession(verifiedSession);
+            setUser(verifiedSession.user);
+            localStorage.setItem(
+              STORAGE_KEY,
+              JSON.stringify(verifiedSession)
+            );
+          }
+        } else if (res.status === 401) {
+          if (!cancelled) {
+            setUser(null);
+            setSession(null);
+          }
+
+          localStorage.removeItem(STORAGE_KEY);
+        }
+      } catch (error) {
+        // Keep a previously restored session if the request fails.
+        console.error("Session verification failed:", error);
+      } finally {
+        if (!cancelled) {
+          setIsLoading(false);
+        }
+      }
     }
-  }, []);
 
-  useEffect(() => {
-    let active = true;
-    getMe()
-      .then((result) => {
-        if (active) setAuth(result);
-      })
-      .catch(() => {
-        if (active) setAuth(null);
-      })
-      .finally(() => {
-        if (active) setLoading(false);
-      });
+    checkAuth();
+
     return () => {
-      active = false;
+      cancelled = true;
     };
   }, []);
 
+  // Email/password login
+  const login = useCallback(
+    async (input: LoginInput): Promise<AuthSession> => {
+      const res = await fetch("/api/auth/login", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(input),
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        throw new Error(
+          data.error || "Login failed. Please check your credentials."
+        );
+      }
+
+      const newSession: AuthSession = data;
+
+      setUser(newSession.user);
+      setSession(newSession);
+      localStorage.setItem(
+        STORAGE_KEY,
+        JSON.stringify(newSession)
+      );
+
+      return newSession;
+    },
+    []
+  );
+
+  // Create an account
+  const signup = useCallback(
+    async (input: SignupInput): Promise<AuthSession> => {
+      const res = await fetch("/api/auth/signup", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(input),
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        throw new Error(data.error || "Failed to create account.");
+      }
+
+      const newSession: AuthSession = data;
+
+      setUser(newSession.user);
+      setSession(newSession);
+      localStorage.setItem(
+        STORAGE_KEY,
+        JSON.stringify(newSession)
+      );
+
+      return newSession;
+    },
+    []
+  );
+
+  // Google sign-in using Firebase Authentication
+  const loginWithGoogle = useCallback(
+    async (): Promise<AuthSession> => {
+      const result = await signInWithPopup(
+        firebaseAuth,
+        googleProvider
+      );
+
+      const credential = await result.user.getIdToken();
+
+      const res = await fetch("/api/auth/google", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        credentials: "same-origin",
+        body: JSON.stringify({ credential }),
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        throw new Error(data.error || "Google sign-in failed.");
+      }
+
+      const newSession: AuthSession = data;
+
+      setUser(newSession.user);
+      setSession(newSession);
+      localStorage.setItem(
+        STORAGE_KEY,
+        JSON.stringify(newSession)
+      );
+
+      return newSession;
+    },
+    []
+  );
+
+  // Logout
   const logout = useCallback(async () => {
     try {
-      await logoutRequest();
+      const headers: Record<string, string> = {};
+
+      if (session?.token) {
+        headers.Authorization = `Bearer ${session.token}`;
+      }
+
+      await fetch("/api/auth/logout", {
+        method: "POST",
+        headers,
+        credentials: "same-origin",
+      });
+    } catch {
+      // Clear the local session even if the request fails.
     } finally {
-      setAuth(null);
-      router.replace("/login");
-      router.refresh();
+      setUser(null);
+      setSession(null);
+      localStorage.removeItem(STORAGE_KEY);
     }
-  }, [router]);
+  }, [session]);
 
-  const value = useMemo<AuthContextValue>(() => ({
-    user: auth?.user ?? null,
-    workspace: auth?.workspace ?? null,
-    role: auth?.role ?? null,
-    loading,
-    logout,
-    refresh,
-  }), [auth, loading, logout, refresh]);
+  // Password reset
+  const requestPasswordReset = useCallback(
+    async (
+      email: string
+    ): Promise<{ success: boolean; message: string }> => {
+      const res = await fetch("/api/auth/forgot-password", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ email }),
+      });
 
-  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
+      const data = await res.json();
+
+      if (!res.ok) {
+        throw new Error(
+          data.error || "Failed to send reset instructions."
+        );
+      }
+
+      return {
+        success: true,
+        message: data.message || "Password reset instructions sent.",
+      };
+    },
+    []
+  );
+
+  return (
+    <AuthContext.Provider
+      value={{
+        user,
+        session,
+        isLoading,
+        login,
+        signup,
+        loginWithGoogle,
+        logout,
+        requestPasswordReset,
+      }}
+    >
+      {children}
+    </AuthContext.Provider>
+  );
 }
 
 export function useAuth() {
   const context = useContext(AuthContext);
-  if (!context) throw new Error("useAuth must be used within an AuthProvider.");
-  return context;
-}
 
-export function useOptionalAuth() {
-  return useContext(AuthContext);
+  if (!context) {
+    throw new Error("useAuth must be used within an AuthProvider");
+  }
+
+  return context;
 }
