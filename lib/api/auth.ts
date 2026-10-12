@@ -46,7 +46,9 @@ export function login(input: LoginInput) {
 }
 
 export function logout() {
-  return apiRequest<void>("/auth/logout", { method: "POST" });
+  return apiRequest<void>("/auth/logout", {
+    method: "POST",
+  });
 }
 
 export function getMe() {
@@ -54,6 +56,8 @@ export function getMe() {
 }
 
 export function getGoogleSignInUrl() {
-  const apiBaseUrl = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000/api/v1";
-  return `${apiBaseUrl.replace(/\/$/, "")}/auth/google`;
+  const apiBaseUrl =
+    process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000/api/v1";
+
+  return `${apiBaseUrl.replace(/\/+$/, "")}/auth/google`;
 }
